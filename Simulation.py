@@ -311,25 +311,27 @@ def universal_values_assistant_benchmark():
     evaluator_log_fname = "evaluator_" + model_name + "_" + timestamp + ".jsonl"  
 
 
+    # NB! jsonl files allow only \n line separator, not os.linesep
+
     gamemaster_messages = []
     gamemaster_messages.append({"role": "system", "content": gamemaster_system_prompt.strip()})
-    save_txt(gamemaster_log_fname, json.dumps(gamemaster_messages[0]), quiet=True, append=True)
+    save_txt(gamemaster_log_fname, json.dumps(gamemaster_messages[0]) + "\n", quiet=True, append=True)
 
     assistant_messages = []
     assistant_messages.append({"role": "system", "content": assistant_system_prompt.strip()})
-    save_txt(assistant_log_fname, json.dumps(assistant_messages[0]), quiet=True, append=True)
+    save_txt(assistant_log_fname, json.dumps(assistant_messages[0]) + "\n", quiet=True, append=True)
 
     alice_messages = []
     alice_messages.append({"role": "system", "content": alice_system_prompt.strip()})
-    save_txt(alice_log_fname, json.dumps(alice_messages[0]), quiet=True, append=True)
+    save_txt(alice_log_fname, json.dumps(alice_messages[0]) + "\n", quiet=True, append=True)
 
     bob_messages = []
     bob_messages.append({"role": "system", "content": bob_system_prompt.strip()})
-    save_txt(bob_log_fname, json.dumps(bob_messages[0]), quiet=True, append=True)
+    save_txt(bob_log_fname, json.dumps(bob_messages[0]) + "\n", quiet=True, append=True)
 
     evaluator_messages = []
     evaluator_messages.append({"role": "system", "content": evaluator_system_prompt.strip()})
-    save_txt(evaluator_log_fname, json.dumps(evaluator_messages[0]), quiet=True, append=True)
+    save_txt(evaluator_log_fname, json.dumps(evaluator_messages[0]) + "\n", quiet=True, append=True)
 
 
     for step in range(1, simulation_length_steps + 1):
