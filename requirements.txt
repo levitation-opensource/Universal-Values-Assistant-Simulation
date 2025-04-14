@@ -1,5 +1,4 @@
 anthropic==0.34.2
-dotenv==0.0.5
 json-tricks==3.17.1
 openai==1.45.0
 tenacity==8.2.2
