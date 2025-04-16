@@ -18,7 +18,6 @@ import pickle
 import datetime
 import csv
 import logging
-from collections import deque, Counter
 import math
 import random
 import json
@@ -39,7 +38,7 @@ from Utilities import (
 )
 
 
-gpt_timeout = 60
+gpt_timeout = 60 if not model_name.lower().startswith("local") else 600
 max_output_tokens = 1000   # TODO: tune
 
 # TODO: set the Claude temperature parameter to 0.5 since the maximum is 1

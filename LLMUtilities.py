@@ -41,6 +41,14 @@ elif model_name.lower().startswith('gpt'):
     from openai import OpenAI  
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     print("Initialized OpenAI client")
+elif model_name.lower().startswith('local'):
+    from openai import OpenAI
+    # base_url : https://github.com/openai/openai-python/issues/1051
+    # do not set OPENAI_BASE_URL env variable since that would override 
+    # the normal GPT model usage config as well
+    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL", "http://localhost:1234")
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
+    print("Initialized Local client")
 else:
     print(f"Unsupported model: {model_name}")
 
@@ -120,12 +128,9 @@ def completion_with_backoff(
       return (response_content, finish_reason, None, None)  # TODO: input_tokens, output_tokens
 
   except Exception as ex: 
-    t = type(
-      ex
-    )  
-    if (
-      t is httpcore.ReadTimeout or t is httpx.ReadTimeout
-    ):  # both exception types have occurred
+    t = type(ex)  
+
+    if t is httpcore.ReadTimeout or t is httpx.ReadTimeout:  # both exception types have occurred
       if attempt_number < max_attempt_number:
         print("Read timeout, retrying...")
       else:
@@ -165,11 +170,16 @@ def completion_with_backoff(
 
 
 def get_encoding_for_model(model):
-  try:
-    encoding = tiktoken.encoding_for_model(model)
-  except KeyError:
-    print("Warning: model not found. Using cl100k_base encoding.")
-    encoding = tiktoken.get_encoding("cl100k_base")
+
+  # TODO: gpt-4.5 encoding is still unknown
+  if model.startswith("gpt-4.1"):
+    encoding = tiktoken.get_encoding("o200k_base")  # https://huggingface.co/datasets/openai/mrcr#how-to-run
+  else:
+    try:
+      encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+      print("Warning: model not found. Using cl100k_base encoding.")
+      encoding = tiktoken.get_encoding("cl100k_base")
 
   return encoding
 
@@ -180,9 +190,14 @@ def get_encoding_for_model(model):
 def num_tokens_from_messages(messages, model, encoding=None):
   """Return the number of tokens used by a list of messages."""
   
-  is_claude = model_name.startswith('claude-')
+  is_local = model.lower().startswith("local")
+  is_claude = model.lower().startswith('claude-')
   
-  if is_claude:
+  if is_local:
+
+    return 0    # TODO
+
+  elif is_claude:
 
     return 0    # TODO
 
@@ -206,9 +221,7 @@ def num_tokens_from_messages(messages, model, encoding=None):
       tokens_per_name = 1
 
     elif model == "gpt-3.5-turbo-0301":
-      tokens_per_message = (
-        4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-      )
+      tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n      
       tokens_per_name = -1  # if there's a name, the role is omitted
 
     elif "gpt-3.5-turbo-16k" in model:  # roland
@@ -332,6 +345,22 @@ def get_max_tokens_for_model(model_name):
     model_name == "o1-preview-2024-09-12"
   ):  # https://platform.openai.com/docs/models/#o1
     max_tokens = 128000
+  elif (
+    model_name == "gpt-4.5-preview"
+  ):  # https://platform.openai.com/docs/models/gpt-4.5-preview
+    max_tokens = 128000
+  elif (
+    model_name == "gpt-4.1"
+  ):  # https://platform.openai.com/docs/models/gpt-4.1
+    max_tokens = 1048576
+  elif (
+    model_name == "gpt-4.1-mini"
+  ):  # https://platform.openai.com/docs/models/gpt-4.1-mini
+    max_tokens = 1048576
+  elif (
+    model_name == "gpt-4.1-nano"
+  ):  # https://platform.openai.com/docs/models/gpt-4.1-nano
+    max_tokens = 1048576
   elif (
     model_name == "gpt-4o-mini"
   ):  # https://platform.openai.com/docs/models/gpt-4o-mini
