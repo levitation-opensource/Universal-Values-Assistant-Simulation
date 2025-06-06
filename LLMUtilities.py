@@ -71,11 +71,13 @@ def completion_with_backoff(
   try:
     timeout = gpt_timeout * timeout_multiplier
 
-    # print(f"Sending OpenAI API request... Using timeout: {timeout} seconds")
+    # print(f"Sending LLM API request... Using timeout: {timeout} seconds")
 
     # TODO!!! support for other LLM API-s
     is_claude = model_name.startswith('claude-')
     if is_claude:
+    
+      # TODO!!! implement automatic rate limiting for Anthropic API
     
       messages = kwargs.pop('messages', [])
       system_message = next((msg['content'] for msg in messages if msg['role'] == 'system'), None)
@@ -93,9 +95,6 @@ def completion_with_backoff(
       return (response.content[0].text, response.stop_reason, response.usage.input_tokens, response.usage.output_tokens)
       
     else:
-
-      # TODO!!! support for local LLM-s
-      #
 
       # set openai internal max_retries to 1 so that we can log errors to console
       openai_response = openai_client.with_options(
@@ -172,7 +171,7 @@ def completion_with_backoff(
 def get_encoding_for_model(model):
 
   # TODO: gpt-4.5 encoding is still unknown
-  if model.startswith("gpt-4.1"):
+  if model.startswith("gpt-4.1"): # https://github.com/openai/tiktoken/issues/395
     encoding = tiktoken.get_encoding("o200k_base")  # https://huggingface.co/datasets/openai/mrcr#how-to-run
   else:
     try:
@@ -301,6 +300,9 @@ def get_max_tokens_for_model(model_name):
     claude_limits = {
       # https://aws.amazon.com/bedrock/claude/
       # TODO: check whether the listing below is complete
+
+      'claude-opus-4-20250514': 200000,
+      'claude-sonnet-4-20250514': 200000,
 
       'claude-3-5-sonnet-latest': 200000,
       'claude-3-5-haiku-latest': 200000,
