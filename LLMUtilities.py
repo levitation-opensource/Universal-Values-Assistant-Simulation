@@ -6,6 +6,7 @@
 
 import os
 import time
+import re
 
 import tenacity
 import tiktoken
@@ -46,7 +47,7 @@ elif model_name.lower().startswith('local'):
     # base_url : https://github.com/openai/openai-python/issues/1051
     # do not set OPENAI_BASE_URL env variable since that would override 
     # the normal GPT model usage config as well
-    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL", "http://localhost:1234")
+    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
     print("Initialized Local client")
 else:
@@ -292,9 +293,14 @@ def num_tokens_from_messages(messages, model, encoding=None):
 def get_max_tokens_for_model(model_name):
   # TODO: config
   
+  is_local = model_name.lower().startswith("local")
   is_claude = model_name.startswith('claude-')
   
-  if is_claude:
+  if is_local:
+
+    return 100000    # TODO: read from config
+
+  elif is_claude:
        
     # Adding Claude model token limits
     claude_limits = {
@@ -479,7 +485,10 @@ def run_llm_completion(
   time_elapsed = time.time() - time_start
 
   too_long = finish_reason == "length" if not is_claude else finish_reason == "max_tokens"
-  assert not too_long
+
+  # sometimes the LLM starts rambling and provides a long response. We need to handle that.
+  if too_long:
+    response_content += " ... too long"   # append " ... too long" sufix to the output instead - that way the int parsing will still fail, but the response can be logged
 
   output_message = {"role": "assistant", "content": response_content}
   if is_claude:
@@ -502,8 +511,11 @@ def run_llm_completion(
 
 
 def extract_int_from_text(text):
+ 
+  # drop any text before numbers, but if there is text between numbers or after numbers then throw an error
+  matches = re.match(r"[^\d]*(\d.*)", text)
+  result = int(matches[1])
 
-  result = int(''.join(c for c in text if c.isdigit() or c == "-"))
   return result
 
 def format_float(value):
