@@ -27,7 +27,7 @@ import configparser
 import ast
 
 
-config_path = r"config.ini" 
+config_path = os.getenv("CONFIG_PATH", "config.ini")
 config = configparser.ConfigParser()
 config.read_file(open(config_path))
 
