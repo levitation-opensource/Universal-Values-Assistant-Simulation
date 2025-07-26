@@ -4,4 +4,4 @@ json-tricks==3.17.1
 llama-tokens==0.0.3
 openai==1.55.3
 tenacity==8.2.2
-tiktoken==0.9.0
+tiktoken==0.8.0

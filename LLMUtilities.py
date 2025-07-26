@@ -349,7 +349,7 @@ def get_max_tokens_for_model(model_name):
   
   if is_local:
 
-    return 100000    # TODO: read from config
+    return 75000    # TODO: read from config
 
   elif is_claude:
        
