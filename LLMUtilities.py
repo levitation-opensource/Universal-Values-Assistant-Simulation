@@ -246,6 +246,8 @@ def num_tokens_from_messages(messages, model, encoding=None):
 
     result = count_of_tokens + count_of_special_tokens
 
+    result += 3   # without this, the result seems to be off by 3 tokens for some reason
+
     return result
 
   elif is_claude:
