@@ -51,7 +51,7 @@ elif model_name.lower().startswith('local'):
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
     tokenizer = LlamaTokenizer()
     print("Initialized Local client")
-elif model_name.lower().startswith('meta-llama/'):
+elif model_name.lower().startswith('meta-llama/') or model_name.lower().startswith('accounts/fireworks/models/llama'):
     from openai import OpenAI
     # from transformers import AutoTokenizer
     from llama_tokens import LlamaTokenizer
@@ -203,7 +203,7 @@ def num_tokens_from_messages(messages, model, encoding=None):
   """Return the number of tokens used by a list of messages."""
   
   is_local = model.lower().startswith("local")
-  is_llama = model.lower().startswith('meta-llama/')
+  is_llama = model.lower().startswith('meta-llama/') or model_name.lower().startswith('accounts/fireworks/models/llama')
   is_claude = model.lower().startswith('claude-')
   
   if is_local or is_llama:  # currently assumin Llama 3.1 8B Instruct model for local
@@ -358,7 +358,7 @@ def get_max_tokens_for_model(model_name):
   # TODO: config
   
   is_local = model_name.lower().startswith("local")
-  is_llama = model_name.lower().startswith('meta-llama/')
+  is_llama = model_name.lower().startswith('meta-llama/') or model_name.lower().startswith('accounts/fireworks/models/llama')
   is_claude = model_name.startswith('claude-')
   
   if is_local:
