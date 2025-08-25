@@ -51,6 +51,17 @@ elif model_name.lower().startswith('local'):
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
     tokenizer = LlamaTokenizer()
     print("Initialized Local client")
+elif model_name.lower().startswith('meta-llama/'):
+    from openai import OpenAI
+    # from transformers import AutoTokenizer
+    from llama_tokens import LlamaTokenizer
+    # base_url : https://github.com/openai/openai-python/issues/1051
+    # do not set OPENAI_BASE_URL env variable since that would override 
+    # the normal GPT model usage config as well
+    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
+    tokenizer = LlamaTokenizer()
+    print("Initialized Llama Cloud API client")
 else:
     print(f"Unsupported model: {model_name}")
 
@@ -192,9 +203,10 @@ def num_tokens_from_messages(messages, model, encoding=None):
   """Return the number of tokens used by a list of messages."""
   
   is_local = model.lower().startswith("local")
+  is_llama = model.lower().startswith('meta-llama/')
   is_claude = model.lower().startswith('claude-')
   
-  if is_local:  # currently assumptin Llama 3.1 8B Instruct model
+  if is_local or is_llama:  # currently assumin Llama 3.1 8B Instruct model for local
 
     # TODO: check model name
 
@@ -243,10 +255,9 @@ def num_tokens_from_messages(messages, model, encoding=None):
       count_of_tokens += tokenizer.num_tokens("assistant")
       count_of_tokens += tokenizer.num_tokens("\n\n")
       count_of_special_tokens += 2
+      count_of_special_tokens += 3   # without this, the result seems to be off by 3 tokens for some reason
 
     result = count_of_tokens + count_of_special_tokens
-
-    result += 3   # without this, the result seems to be off by 3 tokens for some reason
 
     return result
 
@@ -347,11 +358,16 @@ def get_max_tokens_for_model(model_name):
   # TODO: config
   
   is_local = model_name.lower().startswith("local")
+  is_llama = model_name.lower().startswith('meta-llama/')
   is_claude = model_name.startswith('claude-')
   
   if is_local:
 
     return 32000    # TODO: read from config
+
+  elif is_llama:
+
+    return 128000    # TODO: read from config
 
   elif is_claude:
        
