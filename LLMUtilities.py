@@ -40,6 +40,11 @@ elif model_name.lower().startswith('gpt'):
     from openai import OpenAI  
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     print("Initialized OpenAI client")
+elif model_name.lower().startswith('accounts/fireworks/models/gpt'):
+    from openai import OpenAI  
+    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
+    print("Initialized Custom OpenAI client")
 elif model_name.lower().startswith('local'):
     from openai import OpenAI
     # from transformers import AutoTokenizer
@@ -77,7 +82,7 @@ def completion_with_backoff(
 ):  # TODO: ensure that only HTTP 429 is handled here
   # return openai.ChatCompletion.create(**kwargs)
 
-  attempt_number = completion_with_backoff.retry.statistics["attempt_number"]
+  attempt_number = completion_with_backoff.retry.statistics.get("attempt_number", 1)  # TODO!!!: fix this, currently the "attempt_number" field is missing
   max_attempt_number = completion_with_backoff.retry.stop.max_attempt_number
   timeout_multiplier = 2 ** (attempt_number - 1)  # increase timeout exponentially
 
@@ -102,10 +107,15 @@ def completion_with_backoff(
         model=kwargs['model'],
         system=system_message,
         messages=claude_messages,
-        max_tokens=kwargs.get('max_tokens', 1024),
-        temperature=kwargs.get('temperature', 0.5)
+        max_tokens=kwargs.get('max_tokens', 1024),  # TODO! read from kwargs
+        temperature=kwargs.get('temperature', 0.5)  # TODO! read from kwargs
       )
-      return (response.content[0].text, response.stop_reason, response.usage.input_tokens, response.usage.output_tokens)
+            
+      response_content = response.content[0].text.strip()
+      if response_content == "":
+        raise Exception("Empty response content")
+
+      return (response_content, response.stop_reason, response.usage.input_tokens, response.usage.output_tokens)
       
     else:
 
@@ -134,8 +144,11 @@ def completion_with_backoff(
           )  # TODO: use a more specific exception type
 
       # NB! this line may also throw an exception if the OpenAI announces that it is overloaded # TODO: do not retry for all error messages
-      response_content = openai_response["choices"][0]["message"]["content"]
+      response_content = openai_response["choices"][0]["message"]["content"].strip()
       finish_reason = openai_response["choices"][0]["finish_reason"]
+            
+      if response_content == "":
+        raise Exception("Empty response content")
 
       return (response_content, finish_reason, None, None)  # TODO: input_tokens, output_tokens
 
