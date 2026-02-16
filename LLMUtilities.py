@@ -26,10 +26,15 @@ import ast
 
 
 config_path = os.getenv("CONFIG_PATH", "config.ini")
-config = configparser.ConfigParser()
-config.read_file(open(config_path))
+if os.path.exists(config_path):
+    config = configparser.ConfigParser()
+    config.read_file(open(config_path))
+else:
+    config = None
 
-model_name = ast.literal_eval(config.get('Model params', 'name'))
+model_name = os.getenv("MODEL_NAME", None)
+if model_name is None:
+    model_name = ast.literal_eval(config.get('Model params', 'name'))
 
 # Initialize the appropriate client based on the model name
 if model_name.lower().startswith('claude'):
@@ -67,6 +72,11 @@ elif model_name.lower().startswith('meta-llama/') or model_name.lower().startswi
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
     tokenizer = LlamaTokenizer()
     print("Initialized Llama Cloud API client")
+elif os.getenv("CUSTOM_OPENAI_BASE_URL") is not None:      # custom model with OpenAI API
+    from openai import OpenAI  
+    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
+    print("Initialized Custom OpenAI client")
 else:
     print(f"Unsupported model: {model_name}")
 
