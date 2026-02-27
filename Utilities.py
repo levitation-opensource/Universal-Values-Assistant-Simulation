@@ -309,3 +309,163 @@ class EventLog(object):
     self.file.close()
 
 # / class EventLog(object):
+
+
+# coded by Lenz https://www.linkedin.com/in/llenzl/
+def init_gdrive_connections(creds):
+  from googleapiclient.discovery import build
+  import gspread
+
+  drive_service = build('drive', 'v3', credentials=creds)
+  gspread_connection = gspread.authorize(creds)
+  docs_service = build('docs', 'v1', credentials=creds)
+
+  return drive_service, gspread_connection, docs_service
+
+
+# coded by Lenz https://www.linkedin.com/in/llenzl/
+def extract_folder_id(folder_url):
+  if "/folders/" in folder_url:
+    return folder_url.split("/folders/")[1].split("?")[0]
+  return folder_url
+
+
+# coded by Lenz https://www.linkedin.com/in/llenzl/
+def create_timestamped_gdrive_folder(title_prefix, drive_service, parent_folder_id):
+
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  timestamp_string = title_prefix + " " + now_utc.strftime("%Y-%m-%d %H-%M-%S UTC")
+
+  folder_metadata = {
+    'name': timestamp_string,
+    'mimeType': 'application/vnd.google-apps.folder',
+    'parents': [parent_folder_id]
+  }
+
+  folder = drive_service.files().create(
+    body=folder_metadata,
+    fields='id'
+  ).execute()
+
+  return folder.get('id')
+
+#/ def create_timestamped_gdrive_folder(title_prefix, drive_service, parent_folder_id):
+
+
+# coded by Lenz https://www.linkedin.com/in/llenzl/
+# and Roland https://github.com/levitation-opensource/
+def send_tsv_files_to_google_spreadsheet(
+    gspread_connection,
+    target_google_drive_folder_url,
+    drive_filename,
+    colab_filenames,
+    sheet_name_prefix,
+  ):
+
+  folder_id = extract_folder_id(target_google_drive_folder_url)
+  spreadsheet = gspread_connection.create(
+    drive_filename,
+    folder_id=folder_id
+  )
+
+  for index, colab_filename in enumerate(colab_filenames):
+
+    with open(colab_filename, "r") as fh:
+      data = fh.read()
+
+    rows = [line.split("\t") for line in data.strip().split("\n")]
+
+    title = sheet_name_prefix + " " + str(index + 1)
+    if index == 0:
+      worksheet = spreadsheet.sheet1
+      worksheet.update_title(title)
+    else:
+      worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
+
+    worksheet.update(range_name='A1', values=rows)
+
+  #/ for colab_filename in colab_filenames:
+
+  return spreadsheet.url
+
+#/ def send_tsv_file_to_google_spreadsheet()
+
+
+# coded by Lenz https://www.linkedin.com/in/llenzl/
+# and Roland https://github.com/levitation-opensource/
+def send_to_google_spreadsheet(
+    gspread_connection,
+    target_google_drive_folder_url,
+    drive_filename,
+    sheets,
+    sheet_name_prefix,
+  ):
+
+  folder_id = extract_folder_id(target_google_drive_folder_url)
+  spreadsheet = gspread_connection.create(
+    drive_filename,
+    folder_id=folder_id
+  )
+
+  for index, rows in enumerate(sheets):
+
+    title = sheet_name_prefix + " " + str(index + 1)
+    if index == 0:
+      worksheet = spreadsheet.sheet1
+      worksheet.update_title(title)
+    else:
+      worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
+
+    worksheet.update(range_name='A1', values=rows)
+
+  #/ for colab_filename in colab_filenames:
+
+  return spreadsheet.url
+
+#/ def send_to_google_spreadsheet()
+
+
+# coded by Lenz https://www.linkedin.com/in/llenzl/
+def send_txt_file_to_google_docs(
+    drive_service,
+    docs_service,
+    target_google_drive_folder_url,
+    colab_filename
+  ):
+
+  with open(colab_filename, "r") as fh:
+    text = fh.read()
+
+  folder_id = extract_folder_id(target_google_drive_folder_url)
+
+  file_metadata = {
+    'name': colab_filename.replace(".txt", ""),
+    'mimeType': 'application/vnd.google-apps.document',
+    'parents': [folder_id]
+  }
+
+  doc = drive_service.files().create(
+    body=file_metadata,
+    fields='id'
+  ).execute()
+  doc_id = doc.get('id')
+
+  requests = [
+    {
+      'insertText': {
+        'location': {
+          'index': 1
+        },
+        'text': text
+      }
+    }
+  ]
+
+  docs_service.documents().batchUpdate(
+    documentId=doc_id,
+    body={'requests': requests}
+  ).execute()
+
+  return f"https://docs.google.com/document/d/{doc_id}/edit"
+
+#/ def send_txt_file_to_google_docs()

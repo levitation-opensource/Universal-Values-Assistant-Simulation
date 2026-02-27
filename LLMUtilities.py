@@ -165,7 +165,7 @@ def completion_with_backoff(
   except Exception as ex: 
     t = type(ex)  
 
-    if t is httpcore.ReadTimeout or t is httpx.ReadTimeout:  # both exception types have occurred
+    if t is httpcore.ReadTimeout or t is httpx.ReadTimeout or t is openai.APITimeoutError:  # both exception types have occurred
       if attempt_number < max_attempt_number:
         print("Read timeout, retrying...")
       else:
