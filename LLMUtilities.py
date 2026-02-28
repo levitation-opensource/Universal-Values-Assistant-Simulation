@@ -123,7 +123,7 @@ def completion_with_backoff(
             
       response_content = response.content[0].text.strip()
       if response_content == "":
-        raise json.decoder.JSONDecodeError("Empty response content")
+        raise httpcore.NetworkError("Empty response content")
 
       return (response_content, response.stop_reason, response.usage.input_tokens, response.usage.output_tokens)
       
@@ -158,7 +158,7 @@ def completion_with_backoff(
       finish_reason = openai_response["choices"][0]["finish_reason"]
             
       if response_content == "":
-        raise json.decoder.JSONDecodeError("Empty response content")   # TODO!!! auto-retry with this error too  
+        raise httpcore.NetworkError("Empty response content")  # TODO!!! change error type, as this exception type requires 2 arguments  
 
       return (response_content, finish_reason, None, None)  # TODO: input_tokens, output_tokens
 
