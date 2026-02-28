@@ -171,7 +171,7 @@ def completion_with_backoff(
       else:
         print("Read timeout, giving up")
 
-    elif t is httpcore.NetworkError:
+    elif t is httpcore.NetworkError or t is openai.InternalServerError:
       if attempt_number < max_attempt_number:
         print("Network error, retrying...")
       else:
