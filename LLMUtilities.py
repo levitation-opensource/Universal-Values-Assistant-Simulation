@@ -85,7 +85,7 @@ else:
 # TODO: config parameter for max attempt number
 @tenacity.retry(
   wait=tenacity.wait_random_exponential(min=1, max=60),
-  stop=tenacity.stop_after_attempt(10),
+  stop=tenacity.stop_after_attempt(1000000000),
 )  # TODO: config parameters
 def completion_with_backoff(
   gpt_timeout, **kwargs
