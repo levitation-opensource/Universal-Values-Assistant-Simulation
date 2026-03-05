@@ -170,27 +170,27 @@ def completion_with_backoff(
         print("Read timeout, retrying...")
       else:
         # print("Read timeout, giving up")
-        wait_for_enter("Read timeout. Press enter to retry")
+        wait_for_enter("Read timeout. Press enter to retry.")
 
     elif t is httpcore.NetworkError or t is openai.InternalServerError:
       if attempt_number < max_attempt_number:
         print("Network error, retrying...")
       else:
         # print("Network error, giving up")
-        wait_for_enter("Network error. Press enter to retry")
+        wait_for_enter("Network error. Press enter to retry.")
 
     elif t is json.decoder.JSONDecodeError:
       if attempt_number < max_attempt_number:
         print("Response format error, retrying...")
       else:
         # print("Response format error, giving up")
-        wait_for_enter("Response format error. Press enter to retry")
+        wait_for_enter("Response format error. Press enter to retry.")
 
     elif t is openai.RateLimitError:    # TODO: add support for Claude rate limit error as well    # TODO: detect when the credit limit is exceeded
       if attempt_number < max_attempt_number:
         print("Rate limit error, retrying...")
       else:
-        wait_for_enter("Rate limit error. Press enter to retry")
+        wait_for_enter("Rate limit error. Press enter to retry.")
 
     else:  # / if (t ishttpcore.ReadTimeout
       msg = f"{str(ex)}\n{traceback.format_exc()}"

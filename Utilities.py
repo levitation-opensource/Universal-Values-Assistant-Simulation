@@ -359,7 +359,7 @@ def send_tsv_files_to_google_spreadsheet(
     target_google_drive_folder_url,
     drive_filename,
     colab_filenames,
-    sheet_name_prefix,
+    sheet_names,
   ):
 
   folder_id = extract_folder_id(target_google_drive_folder_url)
@@ -375,7 +375,9 @@ def send_tsv_files_to_google_spreadsheet(
 
     rows = [line.split("\t") for line in data.strip().split("\n")]
 
-    title = sheet_name_prefix + " " + str(index + 1)
+    curr_sheet_name_prefix = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
+
+    title = curr_sheet_name_prefix
     if index == 0:
       worksheet = spreadsheet.sheet1
       worksheet.update_title(title)
@@ -469,3 +471,23 @@ def send_txt_file_to_google_docs(
   return f"https://docs.google.com/document/d/{doc_id}/edit"
 
 #/ def send_txt_file_to_google_docs()
+
+
+def get_colab_code():
+
+  from google.colab import _message
+
+  # Fetch the notebook JSON as a string
+  notebook_json_string = _message.blocking_request('get_ipynb', request='', timeout_sec=5)
+  notebook_data = notebook_json_string['ipynb']
+
+  # Access all code cells
+  all_cells = notebook_data['cells']
+  result = [
+    cell['source'] for cell 
+    in all_cells 
+    if cell['cell_type'] == 'code'
+  ]
+  return result
+
+#/ def get_colab_code():
