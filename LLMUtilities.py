@@ -25,6 +25,8 @@ import configparser
 import ast
 
 
+tokens_counter_ignore_unknown_model = False
+
 config_path = os.getenv("CONFIG_PATH", "config.ini")
 if os.path.exists(config_path):
     config = configparser.ConfigParser()
@@ -216,7 +218,8 @@ def get_encoding_for_model(model):
     try:
       encoding = tiktoken.encoding_for_model(model)
     except KeyError:
-      print("Warning: model not found. Using cl100k_base encoding.")
+      if not tokens_counter_ignore_unknown_model:
+        print("Warning: model not found. Using cl100k_base encoding.")
       encoding = tiktoken.get_encoding("cl100k_base")
 
   return encoding
@@ -352,7 +355,8 @@ def num_tokens_from_messages(messages, model, encoding=None):
       # raise NotImplementedError(
       #  f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
       # )
-      print(f"num_tokens_from_messages() is not implemented for model {model}")
+      if not tokens_counter_ignore_unknown_model:
+        print(f"num_tokens_from_messages() is not implemented for model {model}")
       # just take some conservative assumptions here
       tokens_per_message = 4
       tokens_per_name = 1
