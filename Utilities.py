@@ -375,9 +375,8 @@ def send_tsv_files_to_google_spreadsheet(
 
     rows = [line.split("\t") for line in data.strip().split("\n")]
 
-    curr_sheet_name_prefix = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
+    title = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
 
-    title = curr_sheet_name_prefix
     if index == 0:
       worksheet = spreadsheet.sheet1
       worksheet.update_title(title)
@@ -400,7 +399,7 @@ def send_to_google_spreadsheet(
     target_google_drive_folder_url,
     drive_filename,
     sheets,
-    sheet_name_prefix,
+    sheet_names,
   ):
 
   folder_id = extract_folder_id(target_google_drive_folder_url)
@@ -411,7 +410,8 @@ def send_to_google_spreadsheet(
 
   for index, rows in enumerate(sheets):
 
-    title = sheet_name_prefix + " " + str(index + 1)
+    title = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
+
     if index == 0:
       worksheet = spreadsheet.sheet1
       worksheet.update_title(title)
@@ -484,7 +484,8 @@ def get_colab_code():
   # Access all code cells
   all_cells = notebook_data['cells']
   result = [
-    cell['source'] for cell 
+    "".join(cell['source'])   # Join all rows of a cell. Newlines are already part of the source.
+    for cell 
     in all_cells 
     if cell['cell_type'] == 'code'
   ]
