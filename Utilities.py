@@ -128,7 +128,7 @@ def rename_temp_file(filename, make_backup = False):  # NB! make_backup is false
 
       try_index += 1
       safeprint("retrying temp file rename: " + filename)
-      sleep(5)
+      time.sleep(5)
       continue
 
     #/ try:
@@ -342,12 +342,15 @@ def create_timestamped_gdrive_folder(title_prefix, drive_service, parent_folder_
     'parents': [parent_folder_id]
   }
 
-  folder = drive_service.files().create(
-    body=folder_metadata,
-    fields='id'
-  ).execute()
-
-  return folder.get('id')
+  while True:   # handle "service unavailable" errors
+    try:
+      folder = drive_service.files().create(
+        body=folder_metadata,
+        fields='id'
+      ).execute()
+      return folder.get('id')
+    except Exception:
+      time.sleep(10)
 
 #/ def create_timestamped_gdrive_folder(title_prefix, drive_service, parent_folder_id):
 
@@ -363,10 +366,17 @@ def send_tsv_files_to_google_spreadsheet(
   ):
 
   folder_id = extract_folder_id(target_google_drive_folder_url)
-  spreadsheet = gspread_connection.create(
-    drive_filename,
-    folder_id=folder_id
-  )
+
+  
+  while True:   # handle "service unavailable" errors
+    try:
+      spreadsheet = gspread_connection.create(
+        drive_filename,
+        folder_id=folder_id
+      )
+      break
+    except Exception:
+      time.sleep(10)
 
   for index, colab_filename in enumerate(colab_filenames):
 
@@ -377,13 +387,18 @@ def send_tsv_files_to_google_spreadsheet(
 
     title = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
 
-    if index == 0:
-      worksheet = spreadsheet.sheet1
-      worksheet.update_title(title)
-    else:
-      worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
+    while True:   # handle "service unavailable" errors
+      try:
+        if index == 0:
+          worksheet = spreadsheet.sheet1
+          worksheet.update_title(title)
+        else:
+          worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
 
-    worksheet.update(range_name='A1', values=rows)
+        worksheet.update(range_name='A1', values=rows)
+        break
+      except Exception:
+        time.sleep(10)
 
   #/ for colab_filename in colab_filenames:
 
@@ -403,22 +418,33 @@ def send_to_google_spreadsheet(
   ):
 
   folder_id = extract_folder_id(target_google_drive_folder_url)
-  spreadsheet = gspread_connection.create(
-    drive_filename,
-    folder_id=folder_id
-  )
+
+    
+  while True:   # handle "service unavailable" errors
+    try:
+      spreadsheet = gspread_connection.create(
+        drive_filename,
+        folder_id=folder_id
+      )
+      break
+    except Exception:
+      time.sleep(10)
 
   for index, rows in enumerate(sheets):
 
     title = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
 
-    if index == 0:
-      worksheet = spreadsheet.sheet1
-      worksheet.update_title(title)
-    else:
-      worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
+    while True:   # handle "service unavailable" errors
+      try:
+        if index == 0:
+          worksheet = spreadsheet.sheet1
+          worksheet.update_title(title)
+        else:
+          worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
 
-    worksheet.update(range_name='A1', values=rows)
+        worksheet.update(range_name='A1', values=rows)
+      except Exception:
+        time.sleep(10)
 
   #/ for colab_filename in colab_filenames:
 
@@ -446,11 +472,16 @@ def send_txt_file_to_google_docs(
     'parents': [folder_id]
   }
 
-  doc = drive_service.files().create(
-    body=file_metadata,
-    fields='id'
-  ).execute()
-  doc_id = doc.get('id')
+  while True:   # handle "service unavailable" errors
+    try:
+      doc = drive_service.files().create(
+        body=file_metadata,
+        fields='id'
+      ).execute()
+      doc_id = doc.get('id')
+      break
+    except Exception:
+      time.sleep(10)
 
   requests = [
     {
@@ -463,10 +494,15 @@ def send_txt_file_to_google_docs(
     }
   ]
 
-  docs_service.documents().batchUpdate(
-    documentId=doc_id,
-    body={'requests': requests}
-  ).execute()
+  while True:   # handle "service unavailable" errors
+    try:
+      docs_service.documents().batchUpdate(
+        documentId=doc_id,
+        body={'requests': requests}
+      ).execute()
+      break
+    except Exception:
+      time.sleep(10)
 
   return f"https://docs.google.com/document/d/{doc_id}/edit"
 
