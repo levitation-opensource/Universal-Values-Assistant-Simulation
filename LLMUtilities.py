@@ -113,14 +113,13 @@ def completion_with_backoff(
       system_message = next((msg['content'] for msg in messages if msg['role'] == 'system'), None)
         
       # Build the messages for Claude
-      claude_messages = []
       claude_messages = [msg for msg in messages if msg['role'] != 'system']
       response = claude_client.messages.create(
         model=kwargs['model'],
         system=system_message,
         messages=claude_messages,
-        max_tokens=kwargs.get('max_tokens', 1024),  # TODO! read from kwargs
-        temperature=kwargs.get('temperature', 0.5)  # TODO! read from kwargs
+        max_tokens=kwargs.get('max_tokens', 1024),
+        temperature=kwargs.get('temperature', 0.5)
       )
             
       response_content = response.content[0].text.strip()
@@ -174,7 +173,7 @@ def completion_with_backoff(
         # print("Read timeout, giving up")
         wait_for_enter("Read timeout. Press enter to retry.")
 
-    elif t is httpcore.NetworkError or t is openai.InternalServerError:
+    elif t is httpcore.NetworkError or t is openai.InternalServerError or t is openai.BadRequestError:
       if attempt_number < max_attempt_number:
         print("Network error, retrying...")
       else:
