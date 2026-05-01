@@ -403,6 +403,7 @@ def send_tsv_files_to_google_spreadsheet(
 
         worksheet.update(range_name='A1', values=rows)
         break
+
       except Exception as ex:
         print(ex)
         print("Retrying...")
@@ -435,6 +436,7 @@ def send_to_google_spreadsheet(
         folder_id=folder_id
       )
       break
+
     except Exception as ex:
       print(ex)
       print("Retrying...")
@@ -453,6 +455,8 @@ def send_to_google_spreadsheet(
           worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
 
         worksheet.update(range_name='A1', values=rows)
+        break
+
       except Exception as ex:
         print(ex)
         print("Retrying...")
