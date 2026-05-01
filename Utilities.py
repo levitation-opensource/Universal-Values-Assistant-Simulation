@@ -349,7 +349,10 @@ def create_timestamped_gdrive_folder(title_prefix, drive_service, parent_folder_
         fields='id'
       ).execute()
       return folder.get('id')
-    except Exception:
+    
+    except Exception as ex:
+      print(ex)
+      print("Retrying...")
       time.sleep(10)
 
 #/ def create_timestamped_gdrive_folder(title_prefix, drive_service, parent_folder_id):
@@ -375,7 +378,10 @@ def send_tsv_files_to_google_spreadsheet(
         folder_id=folder_id
       )
       break
-    except Exception:
+    
+    except Exception as ex:
+      print(ex)
+      print("Retrying...")
       time.sleep(10)
 
   for index, colab_filename in enumerate(colab_filenames):
@@ -397,7 +403,9 @@ def send_tsv_files_to_google_spreadsheet(
 
         worksheet.update(range_name='A1', values=rows)
         break
-      except Exception:
+      except Exception as ex:
+        print(ex)
+        print("Retrying...")
         time.sleep(10)
 
   #/ for colab_filename in colab_filenames:
@@ -427,7 +435,9 @@ def send_to_google_spreadsheet(
         folder_id=folder_id
       )
       break
-    except Exception:
+    except Exception as ex:
+      print(ex)
+      print("Retrying...")
       time.sleep(10)
 
   for index, rows in enumerate(sheets):
@@ -443,7 +453,9 @@ def send_to_google_spreadsheet(
           worksheet = spreadsheet.add_worksheet(title=title, rows=1000, cols=100)
 
         worksheet.update(range_name='A1', values=rows)
-      except Exception:
+      except Exception as ex:
+        print(ex)
+        print("Retrying...")
         time.sleep(10)
 
   #/ for colab_filename in colab_filenames:
@@ -480,7 +492,10 @@ def send_txt_file_to_google_docs(
       ).execute()
       doc_id = doc.get('id')
       break
-    except Exception:
+    
+    except Exception as ex:
+      print(ex)
+      print("Retrying...")
       time.sleep(10)
 
   requests = [
@@ -501,7 +516,10 @@ def send_txt_file_to_google_docs(
         body={'requests': requests}
       ).execute()
       break
-    except Exception:
+    
+    except Exception as ex:
+      print(ex)
+      print("Retrying...")
       time.sleep(10)
 
   return f"https://docs.google.com/document/d/{doc_id}/edit"
