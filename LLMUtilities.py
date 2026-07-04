@@ -63,17 +63,18 @@ elif model_name.lower().startswith('local'):
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
     tokenizer = LlamaTokenizer()
     print("Initialized Local client")
-elif model_name.lower().startswith('meta-llama/') or model_name.lower().startswith('accounts/fireworks/models/llama'):
-    from openai import OpenAI
-    # from transformers import AutoTokenizer
-    from llama_tokens import LlamaTokenizer
-    # base_url : https://github.com/openai/openai-python/issues/1051
-    # do not set OPENAI_BASE_URL env variable since that would override 
-    # the normal GPT model usage config as well
-    base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
-    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
-    tokenizer = LlamaTokenizer()
-    print("Initialized Llama Cloud API client")
+# comment-out: llama-tokenizer package requires an older version of tiktoken which is incompatible with other packages
+# elif model_name.lower().startswith('meta-llama/') or model_name.lower().startswith('accounts/fireworks/models/llama'):
+#     from openai import OpenAI
+#     # from transformers import AutoTokenizer
+#     from llama_tokens import LlamaTokenizer
+#     # base_url : https://github.com/openai/openai-python/issues/1051
+#     # do not set OPENAI_BASE_URL env variable since that would override 
+#     # the normal GPT model usage config as well
+#     base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
+#     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
+#     tokenizer = LlamaTokenizer()
+#     print("Initialized Llama Cloud API client")
 elif os.getenv("CUSTOM_OPENAI_BASE_URL") is not None:      # custom model with OpenAI API
     from openai import OpenAI  
     base_url = os.getenv("CUSTOM_OPENAI_BASE_URL")
@@ -91,16 +92,16 @@ else:
 )  # TODO: config parameters
 def completion_with_backoff(
   gpt_timeout, **kwargs
-):  # TODO: ensure that only HTTP 429 is handled here
-  # return openai.ChatCompletion.create(**kwargs)
+):
 
-  attempt_number = completion_with_backoff.retry.statistics.get("attempt_number", 1)  # TODO!!!: fix this, currently the "attempt_number" field is missing
+  import anthropic
+
+  attempt_number = completion_with_backoff.retry.statistics.get("attempt_number", completion_with_backoff.statistics["attempt_number"]) # the API has changed  # TODO!!!: fix this, currently the "attempt_number" field is missing
   max_attempt_number = completion_with_backoff.retry.stop.max_attempt_number
-  timeout_multiplier = 2 ** (attempt_number - 1)  # increase timeout exponentially
+  timeout_multiplier = min(60, 2 ** (attempt_number - 1))  # increase timeout exponentially
 
   try:
     timeout = gpt_timeout * timeout_multiplier
-
     # print(f"Sending LLM API request... Using timeout: {timeout} seconds")
 
     # TODO!!! support for other LLM API-s
@@ -111,15 +112,31 @@ def completion_with_backoff(
     
       messages = kwargs.pop('messages', [])
       system_message = next((msg['content'] for msg in messages if msg['role'] == 'system'), None)
-        
-      # Build the messages for Claude
       claude_messages = [msg for msg in messages if msg['role'] != 'system']
-      response = claude_client.messages.create(
+
+      # Prompt caching: wrap system message in a content block with cache_control
+      system_param = (
+        [{"type": "text", "text": system_message, "cache_control": {"type": "ephemeral"}}]
+        if system_message else None
+      )
+
+      # Prompt caching: mark the last assistant turn as a rolling cache breakpoint
+      # (covers all prior history; the current user message at [-1] is left uncached)
+      # [-1] is always the current user turn, [-2] is always the prior assistant turn
+      if len(claude_messages) >= 3:  # at least one prior user/assistant pair + current user turn
+        claude_messages[-2] = {
+          'role': 'assistant',
+          'content': [{"type": "text", "text": claude_messages[-2]['content'],
+                       "cache_control": {"type": "ephemeral"}}]
+        }
+
+      response = claude_client.with_options(timeout=timeout).messages.create(
         model=kwargs['model'],
-        system=system_message,
+        system=system_param,
         messages=claude_messages,
         max_tokens=kwargs.get('max_tokens', 1024),
-        temperature=kwargs.get('temperature', 0.5)
+        temperature=kwargs.get('temperature', 0.5),
+        thinking=kwargs.get('thinking', {"type": "disabled"}),
       )
             
       response_content = response.content[0].text.strip()
@@ -132,7 +149,7 @@ def completion_with_backoff(
 
       # set openai internal max_retries to 1 so that we can log errors to console
       openai_response = openai_client.with_options(
-        timeout=gpt_timeout, max_retries=1
+        timeout=timeout, max_retries=1
       ).with_raw_response.chat.completions.create(**kwargs)
 
       # print("Done OpenAI API request.")
@@ -187,7 +204,7 @@ def completion_with_backoff(
         # print("Response format error, giving up")
         wait_for_enter("Response format error. Press enter to retry.")
 
-    elif t is openai.RateLimitError:    # TODO: add support for Claude rate limit error as well    # TODO: detect when the credit limit is exceeded
+    elif t is openai.RateLimitError or t is anthropic.RateLimitError:    # TODO: detect when the credit limit is exceeded
       if attempt_number < max_attempt_number:
         print("Rate limit error, retrying...")
       else:
@@ -206,6 +223,83 @@ def completion_with_backoff(
   # / except Exception as ex:
 
 # / def completion_with_backoff(gpt_timeout, **kwargs):
+
+
+## https://platform.openai.com/docs/guides/rate-limits/error-mitigation
+# TODO: config parameter for max attempt number
+@tenacity.retry(
+  wait=tenacity.wait_random_exponential(min=1, max=60),
+  stop=tenacity.stop_after_attempt(1000000000),
+)  # TODO: config parameters
+def claude_token_counter_with_backoff(
+  initial_timeout, **kwargs
+):
+
+  import anthropic
+
+  attempt_number = claude_token_counter_with_backoff.retry.statistics.get("attempt_number", claude_token_counter_with_backoff.statistics["attempt_number"]) # the API has changed
+  max_attempt_number = claude_token_counter_with_backoff.retry.stop.max_attempt_number
+  timeout_multiplier = min(60, 2 ** (attempt_number - 1))  # increase timeout exponentially
+
+  try:
+    timeout = initial_timeout * timeout_multiplier
+    # print(f"Sending LLM token counter API request... Using timeout: {timeout} seconds")
+
+    messages = kwargs.pop('messages', [])
+    system_message = next((msg['content'] for msg in messages if msg['role'] == 'system'), None)
+    claude_messages = [msg for msg in messages if msg['role'] != 'system']
+
+    num_input_tokens = claude_client.with_options(timeout=timeout).messages.count_tokens(
+      model=kwargs['model'],
+      system=system_message,
+      messages=claude_messages,
+    ).input_tokens
+
+    return num_input_tokens
+
+  except Exception as ex: 
+    t = type(ex)  
+
+    if t is httpcore.ReadTimeout or t is httpx.ReadTimeout or t is openai.APITimeoutError:
+      if attempt_number < max_attempt_number:
+        print("Read timeout, retrying...")
+      else:
+        # print("Read timeout, giving up")
+        wait_for_enter("Read timeout. Press enter to retry.")
+
+    elif t is httpcore.NetworkError or t is openai.InternalServerError or t is openai.BadRequestError:
+      if attempt_number < max_attempt_number:
+        print("Network error, retrying...")
+      else:
+        # print("Network error, giving up")
+        wait_for_enter("Network error. Press enter to retry.")
+
+    elif t is json.decoder.JSONDecodeError:
+      if attempt_number < max_attempt_number:
+        print("Response format error, retrying...")
+      else:
+        # print("Response format error, giving up")
+        wait_for_enter("Response format error. Press enter to retry.")
+
+    elif t is openai.RateLimitError or t is anthropic.RateLimitError:    # TODO: detect when the credit limit is exceeded
+      if attempt_number < max_attempt_number:
+        print("Rate limit error, retrying...")
+      else:
+        wait_for_enter("Rate limit error. Press enter to retry.")
+
+    else:  # / if (t ishttpcore.ReadTimeout
+      msg = f"{str(ex)}\n{traceback.format_exc()}"
+      print(msg)
+
+      wait_for_enter("Press any key to retry")
+
+    # / if (t ishttpcore.ReadTimeout
+
+    raise
+
+  # / except Exception as ex:
+
+# / def claude_token_counter_with_backoff(initial_timeout, **kwargs):
 
 
 def get_encoding_for_model(model):
@@ -227,14 +321,15 @@ def get_encoding_for_model(model):
 
 
 # https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
-def num_tokens_from_messages(messages, model, encoding=None):
+def num_tokens_from_messages(messages, model, encoding=None, initial_timeout=60):
   """Return the number of tokens used by a list of messages."""
   
   is_local = model.lower().startswith("local")
   is_llama = model.lower().startswith('meta-llama/') or model_name.lower().startswith('accounts/fireworks/models/llama')
   is_claude = model.lower().startswith('claude-')
   
-  if is_local or is_llama:  # currently assumin Llama 3.1 8B Instruct model for local
+  # is_llama condition comment-out: llama-tokenizer package requires an older version of tiktoken which is incompatible with other packages
+  if is_local: # or is_llama:  # currently assuming Llama 3.1 8B Instruct model for local
 
     # TODO: check model name
 
@@ -291,7 +386,13 @@ def num_tokens_from_messages(messages, model, encoding=None):
 
   elif is_claude:
 
-    return 0    # TODO
+    return 0  # temporary adjustment: token count is not needed in current benchmarks. The count_tokens endpoint is Anthropic-specific and many OpenAI-compatible proxies don't implement it.
+
+    return claude_token_counter_with_backoff(
+      initial_timeout,
+      model=model,
+      messages=messages,
+    )
 
   else: # OpenAI
 
@@ -380,7 +481,7 @@ def num_tokens_from_messages(messages, model, encoding=None):
 
     return num_tokens
 
-# / def num_tokens_from_messages(messages, model, encoding=None):
+# / def num_tokens_from_messages(messages, model, encoding=None, initial_timeout=60):
 
 
 def get_max_tokens_for_model(model_name):
@@ -402,37 +503,56 @@ def get_max_tokens_for_model(model_name):
        
     # Adding Claude model token limits
     claude_limits = {
-      # https://aws.amazon.com/bedrock/claude/
       # TODO: check whether the listing below is complete
 
-      'claude-opus-4-20250514': 200000,
-      'claude-sonnet-4-20250514': 200000,
+      # https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing
+      'claude-opus-4-8': 1000000,
+      'claude-opus-4-7': 1000000,
+      'claude-opus-4-6': 1000000,
+      'claude-sonnet-4-6': 1000000,
 
-      'claude-3-5-sonnet-latest': 200000,
-      'claude-3-5-haiku-latest': 200000,
+      # https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions
+      # https://api.anthropic.com/v1/models
+      'claude-opus-4-5-latest': 200000,   # NB! not 1M
+      'claude-sonnet-4-5-latest': 1000000,
+      'claude-haiku-4-5-latest': 200000,
+      'claude-opus-4-5-20251101': 200000,   # NB! not 1M
+      'claude-sonnet-4-5-20250929': 1000000,
+      'claude-haiku-4-5-20251001': 200000,
 
-      'claude-3-5-sonnet-20241022': 200000,
-      'claude-3-5-haiku-20241022': 200000,
+      'claude-opus-4-1-latest': 200000,
+      'claude-opus-4-1-20250805': 200000,
 
-      'claude-3-opus-latest': 200000,
-      'claude-3-sonnet-latest': 200000,
-      'claude-3-haiku-latest': 200000,
+      # Retired models
+      # https://aws.amazon.com/bedrock/claude/
+      # https://platform.claude.com/docs/en/about-claude/model-deprecations
+      # 'claude-opus-4-latest': 200000,
+      # 'claude-sonnet-4-latest': 200000,
+      # 'claude-opus-4-20250514': 200000,
+      # 'claude-sonnet-4-20250514': 200000,
 
-      'claude-3-opus-20240229': 200000,
-      'claude-3-sonnet-20240229': 200000,
+      # 'claude-3-5-sonnet-latest': 200000,
+      # 'claude-3-5-haiku-latest': 200000,
+      # 'claude-3-5-sonnet-20241022': 200000,
+      # 'claude-3-5-haiku-20241022': 200000,
 
-      'claude-3-haiku-20240307': 200000,
+      # 'claude-3-opus-latest': 200000,
+      # 'claude-3-sonnet-latest': 200000,
+      # 'claude-3-haiku-latest': 200000,
+      # 'claude-3-opus-20240229': 200000,
+      # 'claude-3-sonnet-20240229': 200000,
+      # 'claude-3-haiku-20240307': 200000,
 
-      'claude-2.1': 200000,
-      'claude-2.0': 100000,
-      'claude-instant': 100000,
+      # 'claude-2.1': 200000,
+      # 'claude-2.0': 100000,
+      # 'claude-instant': 100000,
     }
     
     if model_name in claude_limits:
       max_tokens = claude_limits[model_name]
     else:
-      assert False  # you probably have to add your model name to above list
-      max_tokens = 100000 # 4096
+      # you probably have to add your model name to above list
+      max_tokens = 100000
 
   # OpenAI models # TODO: refactor to use dictionary like claude's branch uses
   elif model_name == "o1":  # https://platform.openai.com/docs/models/#o1
@@ -547,18 +667,15 @@ def get_max_tokens_for_model(model_name):
 # / def get_max_tokens_for_model(model_name):
 
 
-# TODO: caching support
+# TODO: local caching support
 def run_llm_completion(
   model_name, gpt_timeout, messages, temperature=0, max_output_tokens=100
 ):
   is_claude = model_name.startswith('claude-')
 
-  if is_claude:
-    num_input_tokens = 0 # TODO
-  else:
-    num_input_tokens = num_tokens_from_messages(
-      messages, model_name
-    )  # TODO: a more precise token count is already provided by OpenAI, no need to recalculate it here
+  num_input_tokens = num_tokens_from_messages(
+    messages, model_name, initial_timeout=gpt_timeout
+  )  # TODO: a more precise token count is already provided by OpenAI and Anthropic, no need to recalculate it here
 
   max_tokens = get_max_tokens_for_model(model_name)
 
@@ -595,7 +712,7 @@ def run_llm_completion(
   else:
     # TODO: use input_tokens, output_tokens variables
     num_output_tokens = num_tokens_from_messages(
-      [output_message], model_name
+      [output_message], model_name, initial_timeout=gpt_timeout
     )  # TODO: a more precise token count is already provided by OpenAI, no need to recalculate it here
     num_total_tokens = num_input_tokens + num_output_tokens
 
