@@ -15,6 +15,7 @@ import gzip
 from pathlib import Path
 import csv
 import re
+import math
 
 
 sentinel = object() # https://web.archive.org/web/20200221224620id_/http://effbot.org/zone/default-values.htm
@@ -23,6 +24,11 @@ sentinel = object() # https://web.archive.org/web/20200221224620id_/http://effbo
 is_dev_machine = (os.name == 'nt')
 debugging = (is_dev_machine and sys.gettrace() is not None) and (1 == 1)  # debugging switches
 
+
+# https://stackoverflow.com/questions/28452429/does-gzip-compression-level-have-any-impact-on-decompression
+# there's no extra overhead for the client/browser to decompress more heavily compressed gzip files
+compresslevel = 6   # -6 is default level for gzip: https://linux.die.net/man/1/gzip
+# https://github.com/ebiggers/libdeflate
 
 
 data_dir = "data"
@@ -311,6 +317,10 @@ class EventLog(object):
 # / class EventLog(object):
 
 
+def sign(x):
+  return math.copysign(1, x)
+
+
 # coded by Lenz https://www.linkedin.com/in/llenzl/
 def init_gdrive_connections(creds):
   from googleapiclient.discovery import build
@@ -444,7 +454,12 @@ def send_to_google_spreadsheet(
 
   for index, rows in enumerate(sheets):
 
-    title = (sheet_names + " " + str(index + 1)) if isinstance(sheet_names, str) else sheet_names[index]
+    index_str = str(index + 1)
+    # NB! truncate the sheet name to 31 chars for compatibility with Pandas
+    if isinstance(sheet_names, str):
+      title = sheet_names[ : (31 - 1 - len(index_str))] + " " + index_str
+    else:
+      title = sheet_names[index][:31]
 
     while True:   # handle "service unavailable" errors
       try:
