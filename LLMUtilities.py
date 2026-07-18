@@ -96,7 +96,10 @@ def completion_with_backoff(
 
   import anthropic
 
-  attempt_number = completion_with_backoff.retry.statistics.get("attempt_number", completion_with_backoff.statistics["attempt_number"]) # the API has changed  # TODO!!!: fix this, currently the "attempt_number" field is missing
+  attempt_number = completion_with_backoff.retry.statistics.get("attempt_number")
+  if attempt_number is None:  # the API has changed
+    attempt_number = completion_with_backoff.statistics["attempt_number"]
+
   max_attempt_number = completion_with_backoff.retry.stop.max_attempt_number
   timeout_multiplier = min(60, 2 ** (attempt_number - 1))  # increase timeout exponentially
 
@@ -237,7 +240,10 @@ def claude_token_counter_with_backoff(
 
   import anthropic
 
-  attempt_number = claude_token_counter_with_backoff.retry.statistics.get("attempt_number", claude_token_counter_with_backoff.statistics["attempt_number"]) # the API has changed
+  attempt_number = claude_token_counter_with_backoff.retry.statistics.get("attempt_number")
+  if attempt_number is None:  # the API has changed
+    attempt_number = claude_token_counter_with_backoff.statistics["attempt_number"]
+
   max_attempt_number = claude_token_counter_with_backoff.retry.stop.max_attempt_number
   timeout_multiplier = min(60, 2 ** (attempt_number - 1))  # increase timeout exponentially
 
